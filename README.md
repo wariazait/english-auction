@@ -1,66 +1,36 @@
-## Foundry
+## Английский аукцион
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Тип аукциона, где торги начинаются с минимальной базовой стоимости. Участники, при этом, пошагово повышают цену на лот.
 
-Foundry consists of:
+**Победителем** считается тот участник, что предложил самую высокую ставку за лот до окончания времени аукциона.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+В данном репозитории представлен код смарт-контракта, реализующего английский аукцион. Код смарт-контракта покрыт тестами с помощью фреймворка [Foundry](https://getfoundry.sh).
 
-## Documentation
+## Тесты
 
-https://book.getfoundry.sh/
+Ниже представлен алгоритм запуска тестов для смарт-контракта локально.
 
-## Usage
-
-### Build
+1. Установка `Foundry`
 
 ```shell
-$ forge build
+curl -L https://foundry.paradigm.xyz | bash
+source ~/.zshenv
+foundryup
 ```
 
-### Test
+2. Скачивание репозитория
 
 ```shell
-$ forge test
+git@github.com:wariazait/english-auction.git
+cd english-auction
 ```
 
-### Format
+3. Запуск тестов
 
 ```shell
-$ forge fmt
+forge test
 ```
 
-### Gas Snapshots
+Возможный результат запуска тестов будет выглядеть следующим образом:
 
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+![alt text](image.png)
