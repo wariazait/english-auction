@@ -41,13 +41,9 @@ contract EnglishAuctionTest is Test {
     /// @dev Тест успешного старта аукциона.
     function testStartAuction() public {
         vm.expectEmit(address(auction));
-        emit EnglishAuction.AuctionStarted(
-            EnglishAuction.Auction({
-                itemDescription: "something",
-                start: block.timestamp,
-                duration: 0
-            })
-        );
+        emit EnglishAuction.AuctionStarted(EnglishAuction.Auction({
+                itemDescription: "something", start: block.timestamp, duration: 0
+            }));
         auction.start("something", block.timestamp, 0, 0);
     }
 
@@ -104,10 +100,7 @@ contract EnglishAuctionTest is Test {
 
         // Ожидаем, что информация об аукционе будет такая-же, которую мы задали при старте.
         EnglishAuction.Auction memory auctionData = auction.getAuction();
-        assertEq(
-            keccak256(bytes(auctionData.itemDescription)),
-            keccak256(bytes("some useless stuff"))
-        );
+        assertEq(keccak256(bytes(auctionData.itemDescription)), keccak256(bytes("some useless stuff")));
         assertEq(auctionData.start, block.timestamp);
         assertEq(auctionData.duration, 1 minutes);
     }
@@ -200,12 +193,7 @@ contract EnglishAuctionTest is Test {
         // Происходит попытка стартовать аукцион во время проведения другого.
         // Ожидаем ошибку.
         vm.expectRevert(EnglishAuction.AuctionAlreadyStarted.selector);
-        auction.start(
-            "some useless stuff 2",
-            block.timestamp + 1 minutes,
-            1 minutes,
-            1 ether
-        );
+        auction.start("some useless stuff 2", block.timestamp + 1 minutes, 1 minutes, 1 ether);
     }
 
     /// @dev Тест ставки в незапущенном аукционе.
@@ -229,12 +217,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user1, 1 ether);
 
         // Задаём отложенный старт аукциона минутой позже текущего времени.
-        auction.start(
-            "some useless stuff",
-            block.timestamp + 1 minutes,
-            1 minutes,
-            0
-        );
+        auction.start("some useless stuff", block.timestamp + 1 minutes, 1 minutes, 0);
 
         // Пользователь 1 пытается сделать ставку.
         vm.startPrank(user1);
@@ -260,12 +243,7 @@ contract EnglishAuctionTest is Test {
         vm.warp(2 minutes);
 
         // Пытаемся создать аукцион "задним числом" со стартом минуту назад.
-        auction.start(
-            "some useless stuff",
-            block.timestamp - 1 minutes,
-            1 minutes,
-            0
-        );
+        auction.start("some useless stuff", block.timestamp - 1 minutes, 1 minutes, 0);
     }
 
     /// @dev Тест ставки не перебивающей текущую стоимость.
@@ -275,12 +253,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user1, 1 ether);
 
         // Аукцион стартует.
-        auction.start(
-            "some useless stuff",
-            block.timestamp,
-            1 minutes,
-            2 ether
-        );
+        auction.start("some useless stuff", block.timestamp, 1 minutes, 2 ether);
 
         // Пользователь 1 пытается сделать ставку ниже стартовой стоимости.
         vm.startPrank(user1);
