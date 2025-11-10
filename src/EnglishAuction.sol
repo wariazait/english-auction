@@ -10,20 +10,20 @@ contract EnglishAuction is Ownable {
         uint256 duration;
     }
 
-    struct HighestBid {
+    struct Bid {
         address account;
         uint256 value;
     }
 
     Auction private _auction;
-    HighestBid private _highestBid;
+    Bid private _highestBid;
     address private _wallet;
 
     event WalletSet(address wallet);
     event AuctionStarted(Auction auction);
     event AuctionCanceled(Auction auction);
-    event AuctionFinished(Auction auction, HighestBid bid);
-    event Bid(address account, uint256 value);
+    event AuctionFinished(Auction auction, Bid bid);
+    event BidMaked(address account, uint256 value);
 
     error WalletAddressZero();
     error TooEarlyStartTime();
@@ -67,7 +67,7 @@ contract EnglishAuction is Ownable {
 
         _auction = Auction({itemDescription: _itemDescription, start: startTime, duration: _duration});
 
-        _highestBid = HighestBid({account: address(0), value: startPrice});
+        _highestBid = Bid({account: address(0), value: startPrice});
 
         emit AuctionStarted(_auction);
     }
@@ -77,11 +77,11 @@ contract EnglishAuction is Ownable {
         require(block.timestamp < _auction.start + _auction.duration, AuctionAlreadyFinished());
         require(msg.value > _highestBid.value, NotEnoughMoney());
 
-        HighestBid memory currentBid = _highestBid;
-        _highestBid = HighestBid({account: msg.sender, value: msg.value});
+        Bid memory currentBid = _highestBid;
+        _highestBid = Bid({account: msg.sender, value: msg.value});
         _returnMoney(currentBid);
 
-        emit Bid(msg.sender, msg.value);
+        emit BidMaked(msg.sender, msg.value);
     }
 
     /**
@@ -90,7 +90,7 @@ contract EnglishAuction is Ownable {
      */
     function cancel() external whenStarted onlyOwner {
         Auction memory auction = _auction;
-        HighestBid memory currentBid = _highestBid;
+        Bid memory currentBid = _highestBid;
 
         _clearAuction();
         _returnMoney(currentBid);
@@ -106,7 +106,7 @@ contract EnglishAuction is Ownable {
         require(block.timestamp > _auction.start + _auction.duration, AuctionNotFinished());
 
         Auction memory auction = _auction;
-        HighestBid memory highestBid = _highestBid;
+        Bid memory highestBid = _highestBid;
 
         _clearAuction();
 
@@ -118,7 +118,7 @@ contract EnglishAuction is Ownable {
     }
 
     /// @notice Возвращает информацию о текущей наибольшей ставке.
-    function getHighestBid() external view returns (HighestBid memory) {
+    function getHighestBid() external view returns (Bid memory) {
         return _highestBid;
     }
 
@@ -144,7 +144,7 @@ contract EnglishAuction is Ownable {
     }
 
     /// @dev Позволяет вернуть деньги с предыдущей ставки, при условии что она была сделана.
-    function _returnMoney(HighestBid memory _bid) private {
+    function _returnMoney(Bid memory _bid) private {
         if (_bid.account != address(0) && _bid.value > 0) {
             _transferMoney(_bid.account, _bid.value);
         }

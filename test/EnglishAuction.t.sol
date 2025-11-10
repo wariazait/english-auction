@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
 import {EnglishAuction} from "../src/EnglishAuction.sol";
 
 // Кошелек-получатель, который всегда ревертит при получении ether
@@ -29,6 +28,7 @@ contract RevertingBidder {
     }
 }
 
+/// @dev Тесты для смарт-контракта EnglishAuction
 contract EnglishAuctionTest is Test {
     EnglishAuction public auction;
 
@@ -61,12 +61,12 @@ contract EnglishAuctionTest is Test {
         // Пользователь 1 делает ставку.
         vm.startPrank(user1);
         vm.expectEmit(address(auction));
-        emit EnglishAuction.Bid(user1, 1 ether);
+        emit EnglishAuction.BidMaked(user1, 1 ether);
         auction.bid{value: 1 ether}();
         vm.stopPrank();
 
         // Ожидаем, что ставка сделана и денег у пользователя 1 нет.
-        EnglishAuction.HighestBid memory h = auction.getHighestBid();
+        EnglishAuction.Bid memory h = auction.getHighestBid();
         assertEq(h.account, user1);
         assertEq(h.value, 1 ether);
         assertEq(user1.balance, 0);
@@ -86,10 +86,15 @@ contract EnglishAuctionTest is Test {
         assertEq(user1.balance, 1 ether);
     }
 
-    /// @dev Тест смены владельца аукциона.
+    /// @dev Тест смены кошелька вывода средств аукциона.
     function testChangeWallet() public {
+        // Создаём нового пользователя. Он будет кошельком аукциона.
         address user1 = makeAddr("user1");
+
+        // Обновляем кошелёк смарт-контракта.
         auction.setWallet(user1);
+
+        // Ожидаем, что адрес кошелька аукциона изменился.
         assertEq(auction.getWallet(), user1);
     }
 
@@ -135,7 +140,7 @@ contract EnglishAuctionTest is Test {
 
         // Ожидаем, что аукцион обнулился.
         a = auction.getAuction();
-        EnglishAuction.HighestBid memory h = auction.getHighestBid();
+        EnglishAuction.Bid memory h = auction.getHighestBid();
         assertEq(a.start, 0);
         assertEq(a.duration, 0);
         assertEq(bytes(a.itemDescription).length, 0);
@@ -167,7 +172,7 @@ contract EnglishAuctionTest is Test {
 
         // Выполняем завершения аукциона.
         EnglishAuction.Auction memory a = auction.getAuction();
-        EnglishAuction.HighestBid memory h = auction.getHighestBid();
+        EnglishAuction.Bid memory h = auction.getHighestBid();
         vm.expectEmit(address(auction));
         emit EnglishAuction.AuctionFinished(a, h);
         auction.finish();
