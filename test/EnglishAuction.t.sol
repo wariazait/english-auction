@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {EnglishAuction} from "../src/EnglishAuction.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Кошелек-получатель, который всегда ревертит при получении ether
 contract RevertingReceiver {
@@ -28,23 +29,63 @@ contract RevertingBidder {
     }
 }
 
+contract SomeToken is ERC20 {
+    constructor() ERC20("SomeToken", "STK") {
+        _mint(msg.sender, 1000000 * 10 ** decimals());
+    }
+}
+
 /// @dev Тесты для смарт-контракта EnglishAuction
 contract EnglishAuctionTest is Test {
     EnglishAuction public auction;
+    SomeToken public token;
 
     address owner = makeAddr("owner");
 
     function setUp() public {
         auction = new EnglishAuction(owner);
+        token = new SomeToken();
+        token.approve(address(auction), 10);
     }
 
     /// @dev Тест успешного старта аукциона.
     function testStartAuction() public {
+        // Стaртуем аукцион.
         vm.expectEmit(address(auction));
         emit EnglishAuction.AuctionStarted(EnglishAuction.Auction({
-                itemDescription: "something", start: block.timestamp, duration: 0
+                token: token, tokenCount: 10, start: block.timestamp, duration: 0
             }));
-        auction.start("something", block.timestamp, 0, 0);
+        auction.start(token, 10, block.timestamp, 0, 0);
+
+        // Ожидаем, что на адрес контракта пришли разыгрываемые токены.
+        assertEq(token.balanceOf(address(auction)), 10);
+    }
+
+    /// @dev Тест старта аукциона без разрешения владельца токена ими распоряжаться.
+    function testStartAuctionWithoutTokenAllowance() public {
+        // Ожидаем получения ошибки, что права на перевод токенов недостаточны.
+        vm.expectRevert(EnglishAuction.TokenAllowanceNeeded.selector);
+
+        // Пробуем стартовать аукцион.
+        auction.start(token, 11, block.timestamp, 0, 0);
+    }
+
+    function testStartAuctionWithoutEnoughTokens() public {
+        // Появляется новый токен, созданный другим пользователем.
+        address user1 = makeAddr("user1");
+        vm.startPrank(user1);
+        SomeToken test_token = new SomeToken();
+        test_token.approve(address(auction), 10);
+        vm.stopPrank();
+
+        // Разрешаем тесту переводить токены.
+        test_token.approve(address(this), 10);
+
+        // Ожидаем получения ошибки, что у пользователя недостаточно токенов.
+        vm.expectRevert(EnglishAuction.NotEnoughTokens.selector);
+
+        // Пробуем стартовать аукцион.
+        auction.start(test_token, 10, block.timestamp, 0, 0);
     }
 
     /// @dev Тест нескольких ставок от разных пользователей.
@@ -56,7 +97,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user2, 2 ether);
 
         // Запускаем аукцион.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
 
         // Пользователь 1 делает ставку.
         vm.startPrank(user1);
@@ -101,11 +142,12 @@ contract EnglishAuctionTest is Test {
     /// @dev Тест получения информации об аукционе.
     function testGetAuction() public {
         // Аукцион стартует.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
 
         // Ожидаем, что информация об аукционе будет такая-же, которую мы задали при старте.
         EnglishAuction.Auction memory auctionData = auction.getAuction();
-        assertEq(keccak256(bytes(auctionData.itemDescription)), keccak256(bytes("some useless stuff")));
+        assertEq(address(auctionData.token), address(token));
+        assertEq(auctionData.tokenCount, 10);
         assertEq(auctionData.start, block.timestamp);
         assertEq(auctionData.duration, 1 minutes);
     }
@@ -117,7 +159,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user1, 1 ether);
 
         // Аукцион стартует.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
 
         // Пользователь 1 делает ставку.
         vm.startPrank(user1);
@@ -143,9 +185,14 @@ contract EnglishAuctionTest is Test {
         EnglishAuction.Bid memory h = auction.getHighestBid();
         assertEq(a.start, 0);
         assertEq(a.duration, 0);
-        assertEq(bytes(a.itemDescription).length, 0);
+        assertEq(address(a.token), address(0));
+        assertEq(a.tokenCount, 0);
         assertEq(h.account, address(0));
         assertEq(h.value, 0);
+
+        // Ожидаем, что токен вернулся владельцу.
+        assertEq(token.balanceOf(address(this)), 1000000 * 10 ** 18);
+        assertEq(token.balanceOf(address(auction)), 0);
     }
 
     /// @dev Тест штатного завершения аукциона.
@@ -155,7 +202,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user1, 1 ether);
 
         // Аукцион стартует.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
 
         // Пользователь 1 делает ставку.
         vm.startPrank(user1);
@@ -182,23 +229,58 @@ contract EnglishAuctionTest is Test {
         h = auction.getHighestBid();
         assertEq(a.start, 0);
         assertEq(a.duration, 0);
-        assertEq(bytes(a.itemDescription).length, 0);
+        assertEq(address(a.token), address(0));
+        assertEq(a.tokenCount, 0);
         assertEq(h.account, address(0));
         assertEq(h.value, 0);
 
         // Ожидаем, что на кошелёк владельца аукциона пришла ставка.
         assertEq(owner.balance, 1 ether);
+
+        // Ожидаем, что победителю пришли токены.
+        assertEq(token.balanceOf(user1), 10);
+        assertEq(token.balanceOf(address(auction)), 0);
+    }
+
+    /// @dev Тест штатного завершения аукциона, который прошёл без ставок.
+    function testFinishAuctionWithoutBids() public {
+        // Аукцион стартует.
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
+
+        // Прошло 2 минуты. Аукцион должен успеть завершиться за это время.
+        vm.warp(block.timestamp + 2 minutes);
+
+        // Выполняем завершения аукциона.
+        EnglishAuction.Auction memory a = auction.getAuction();
+        EnglishAuction.Bid memory h = auction.getHighestBid();
+        vm.expectEmit(address(auction));
+        emit EnglishAuction.AuctionFinished(a, h);
+        auction.finish();
+
+        // Ожидаем, что аукцион обнулился
+        a = auction.getAuction();
+        h = auction.getHighestBid();
+        assertEq(a.start, 0);
+        assertEq(a.duration, 0);
+        assertEq(address(a.token), address(0));
+        assertEq(a.tokenCount, 0);
+        assertEq(h.account, address(0));
+        assertEq(h.value, 0);
+
+        // Ожидаем, что токен вернулся владельцу.
+        assertEq(token.balanceOf(address(this)), 1000000 * 10 ** 18);
+        assertEq(token.balanceOf(address(auction)), 0);
     }
 
     /// @dev Тест старта аукциона, который уже запущен.
     function testStartAlreadyStartedAuction() public {
         // Аукцион стартует.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
 
         // Происходит попытка стартовать аукцион во время проведения другого.
         // Ожидаем ошибку.
         vm.expectRevert(EnglishAuction.AuctionAlreadyStarted.selector);
-        auction.start("some useless stuff 2", block.timestamp + 1 minutes, 1 minutes, 1 ether);
+        auction.start(token, 10, block.timestamp + 1 minutes, 1 minutes, 1 ether);
     }
 
     /// @dev Тест ставки в незапущенном аукционе.
@@ -222,7 +304,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user1, 1 ether);
 
         // Задаём отложенный старт аукциона минутой позже текущего времени.
-        auction.start("some useless stuff", block.timestamp + 1 minutes, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp + 1 minutes, 1 minutes, 0);
 
         // Пользователь 1 пытается сделать ставку.
         vm.startPrank(user1);
@@ -248,7 +330,7 @@ contract EnglishAuctionTest is Test {
         vm.warp(2 minutes);
 
         // Пытаемся создать аукцион "задним числом" со стартом минуту назад.
-        auction.start("some useless stuff", block.timestamp - 1 minutes, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp - 1 minutes, 1 minutes, 0);
     }
 
     /// @dev Тест ставки не перебивающей текущую стоимость.
@@ -258,7 +340,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user1, 1 ether);
 
         // Аукцион стартует.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 2 ether);
+        auction.start(token, 10, block.timestamp, 1 minutes, 2 ether);
 
         // Пользователь 1 пытается сделать ставку ниже стартовой стоимости.
         vm.startPrank(user1);
@@ -275,7 +357,7 @@ contract EnglishAuctionTest is Test {
         vm.deal(user1, 1 ether);
 
         // Аукцион стартует.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
 
         // Прошло 2 минуты. Время аукциона закончилось.
         vm.warp(block.timestamp + 2 minutes);
@@ -291,7 +373,7 @@ contract EnglishAuctionTest is Test {
     /// @dev Тест завершения аукциона раньше времени.
     function testFinishAuctionBeforeTime() public {
         // Аукцион стартует.
-        auction.start("some useless stuff", block.timestamp, 1 minutes, 0);
+        auction.start(token, 10, block.timestamp, 1 minutes, 0);
 
         // При попытке завершить аукцион ожидаем ошибку, так как время ещё не прошло.
         vm.expectRevert(EnglishAuction.AuctionNotFinished.selector);
@@ -301,7 +383,7 @@ contract EnglishAuctionTest is Test {
     /// @dev Тест сбоя перевода средств на кошелёк аукциона.
     function testFinish_TransferToWalletFails() public {
         // Старт аукциона
-        auction.start("item", block.timestamp, 1 hours, 0);
+        auction.start(token, 10, block.timestamp, 1 hours, 0);
 
         // Ставка от EOA
         address user = address(0x1);
@@ -322,7 +404,7 @@ contract EnglishAuctionTest is Test {
     /// @dev Тест сбоя возврата средств за предыдущую ставку.
     function testBid_RefundPreviousBidderFails() public {
         // Старт аукциона
-        auction.start("item", block.timestamp, 1 hours, 0);
+        auction.start(token, 10, block.timestamp, 1 hours, 0);
 
         // Первый лидер — контракт, который ревертит при возврате
         RevertingBidder badBidder = new RevertingBidder(auction);

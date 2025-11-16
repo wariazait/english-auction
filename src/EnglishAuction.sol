@@ -2,10 +2,12 @@
 pragma solidity ^0.8.30;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract EnglishAuction is Ownable {
     struct Auction {
-        string itemDescription;
+        IERC20 token;
+        uint256 tokenCount;
         uint256 start;
         uint256 duration;
     }
@@ -32,6 +34,8 @@ contract EnglishAuction is Ownable {
     error AuctionNotFinished();
     error AuctionNotStarted();
     error NotEnoughMoney();
+    error NotEnoughTokens();
+    error TokenAllowanceNeeded();
     error NegativeStartPrice();
     error TransferMoneyFailed();
 
@@ -42,7 +46,10 @@ contract EnglishAuction is Ownable {
     }
 
     function _whenStarted() internal view {
-        require(block.timestamp >= _auction.start && _auction.start != 0, AuctionNotStarted());
+        require(
+            block.timestamp >= _auction.start && _auction.start != 0,
+            AuctionNotStarted()
+        );
     }
 
     constructor(address wallet) Ownable(msg.sender) {
@@ -53,19 +60,35 @@ contract EnglishAuction is Ownable {
 
     /**
      * @notice Стартует аукцион.
-     * @param _itemDescription Описание продаваемой сущности.
+     * @param _token Продаваемый токен.
+     * @param countTokens Количество продаваемых токенов.
      * @param startTime Время начала аукциона.
      * @param _duration Длительность аукциона.
      * @dev Аукцион можно начать заранее, указав соответствующее время начала.
      */
-    function start(string memory _itemDescription, uint256 startTime, uint256 _duration, uint256 startPrice)
-        external
-        onlyOwner
-    {
+    function start(
+        IERC20 _token,
+        uint256 countTokens,
+        uint256 startTime,
+        uint256 _duration,
+        uint256 startPrice
+    ) external onlyOwner {
         require(_auction.start == 0, AuctionAlreadyStarted());
         require(startTime >= block.timestamp, TooEarlyStartTime());
+        require(_token.balanceOf(owner()) >= countTokens, NotEnoughTokens());
+        require(
+            _token.allowance(owner(), address(this)) >= countTokens,
+            TokenAllowanceNeeded()
+        );
 
-        _auction = Auction({itemDescription: _itemDescription, start: startTime, duration: _duration});
+        _token.transferFrom(owner(), address(this), countTokens);
+
+        _auction = Auction({
+            token: _token,
+            tokenCount: countTokens,
+            start: startTime,
+            duration: _duration
+        });
 
         _highestBid = Bid({account: address(0), value: startPrice});
 
@@ -74,7 +97,10 @@ contract EnglishAuction is Ownable {
 
     /// @notice Позволяет сделать ставку.
     function bid() external payable whenStarted {
-        require(block.timestamp < _auction.start + _auction.duration, AuctionAlreadyFinished());
+        require(
+            block.timestamp < _auction.start + _auction.duration,
+            AuctionAlreadyFinished()
+        );
         require(msg.value > _highestBid.value, NotEnoughMoney());
 
         Bid memory currentBid = _highestBid;
@@ -95,6 +121,8 @@ contract EnglishAuction is Ownable {
         _clearAuction();
         _returnMoney(currentBid);
 
+        auction.token.transfer(owner(), auction.tokenCount);
+
         emit AuctionCanceled(auction);
     }
 
@@ -103,7 +131,10 @@ contract EnglishAuction is Ownable {
      * @dev Закончить аукцион может любой адрес после окончания работы аукциона.
      */
     function finish() external {
-        require(block.timestamp > _auction.start + _auction.duration, AuctionNotFinished());
+        require(
+            block.timestamp > _auction.start + _auction.duration,
+            AuctionNotFinished()
+        );
 
         Auction memory auction = _auction;
         Bid memory highestBid = _highestBid;
@@ -112,6 +143,9 @@ contract EnglishAuction is Ownable {
 
         if (highestBid.account != address(0)) {
             _transferMoney(_wallet, highestBid.value);
+            auction.token.transfer(highestBid.account, auction.tokenCount);
+        } else {
+            auction.token.transfer(owner(), auction.tokenCount);
         }
 
         emit AuctionFinished(auction, highestBid);
@@ -158,7 +192,7 @@ contract EnglishAuction is Ownable {
 
     /// @dev Осуществляет перевод нативной валюты блокчейна с адреса контракта.
     function _transferMoney(address to, uint256 value) private {
-        (bool success,) = to.call{value: value}("");
+        (bool success, ) = to.call{value: value}("");
 
         if (!success) {
             revert TransferMoneyFailed();
