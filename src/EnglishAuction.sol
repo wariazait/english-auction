@@ -46,10 +46,7 @@ contract EnglishAuction is Ownable {
     }
 
     function _whenStarted() internal view {
-        require(
-            block.timestamp >= _auction.start && _auction.start != 0,
-            AuctionNotStarted()
-        );
+        require(block.timestamp >= _auction.start && _auction.start != 0, AuctionNotStarted());
     }
 
     constructor(address wallet) Ownable(msg.sender) {
@@ -66,29 +63,18 @@ contract EnglishAuction is Ownable {
      * @param _duration Длительность аукциона.
      * @dev Аукцион можно начать заранее, указав соответствующее время начала.
      */
-    function start(
-        IERC20 _token,
-        uint256 countTokens,
-        uint256 startTime,
-        uint256 _duration,
-        uint256 startPrice
-    ) external onlyOwner {
+    function start(IERC20 _token, uint256 countTokens, uint256 startTime, uint256 _duration, uint256 startPrice)
+        external
+        onlyOwner
+    {
         require(_auction.start == 0, AuctionAlreadyStarted());
         require(startTime >= block.timestamp, TooEarlyStartTime());
         require(_token.balanceOf(owner()) >= countTokens, NotEnoughTokens());
-        require(
-            _token.allowance(owner(), address(this)) >= countTokens,
-            TokenAllowanceNeeded()
-        );
+        require(_token.allowance(owner(), address(this)) >= countTokens, TokenAllowanceNeeded());
 
         _token.transferFrom(owner(), address(this), countTokens);
 
-        _auction = Auction({
-            token: _token,
-            tokenCount: countTokens,
-            start: startTime,
-            duration: _duration
-        });
+        _auction = Auction({token: _token, tokenCount: countTokens, start: startTime, duration: _duration});
 
         _highestBid = Bid({account: address(0), value: startPrice});
 
@@ -97,10 +83,7 @@ contract EnglishAuction is Ownable {
 
     /// @notice Позволяет сделать ставку.
     function bid() external payable whenStarted {
-        require(
-            block.timestamp < _auction.start + _auction.duration,
-            AuctionAlreadyFinished()
-        );
+        require(block.timestamp < _auction.start + _auction.duration, AuctionAlreadyFinished());
         require(msg.value > _highestBid.value, NotEnoughMoney());
 
         Bid memory currentBid = _highestBid;
@@ -131,10 +114,7 @@ contract EnglishAuction is Ownable {
      * @dev Закончить аукцион может любой адрес после окончания работы аукциона.
      */
     function finish() external {
-        require(
-            block.timestamp > _auction.start + _auction.duration,
-            AuctionNotFinished()
-        );
+        require(block.timestamp > _auction.start + _auction.duration, AuctionNotFinished());
 
         Auction memory auction = _auction;
         Bid memory highestBid = _highestBid;
@@ -192,7 +172,7 @@ contract EnglishAuction is Ownable {
 
     /// @dev Осуществляет перевод нативной валюты блокчейна с адреса контракта.
     function _transferMoney(address to, uint256 value) private {
-        (bool success, ) = to.call{value: value}("");
+        (bool success,) = to.call{value: value}("");
 
         if (!success) {
             revert TransferMoneyFailed();
