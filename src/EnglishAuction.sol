@@ -2,11 +2,11 @@
 pragma solidity ^0.8.30;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "./ERC20.sol";
 
 contract EnglishAuction is Ownable {
     struct Auction {
-        IERC20 token;
+        ERC20 token;
         uint256 tokenCount;
         uint256 start;
         uint256 duration;
@@ -63,7 +63,7 @@ contract EnglishAuction is Ownable {
      * @param _duration Длительность аукциона.
      * @dev Аукцион можно начать заранее, указав соответствующее время начала.
      */
-    function start(IERC20 _token, uint256 countTokens, uint256 startTime, uint256 _duration, uint256 startPrice)
+    function start(ERC20 _token, uint256 countTokens, uint256 startTime, uint256 _duration, uint256 startPrice)
         external
         onlyOwner
     {

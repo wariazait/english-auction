@@ -3,7 +3,8 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {EnglishAuction} from "../src/EnglishAuction.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "../src/ERC20.sol";
+import {console} from "forge-std/console.sol";
 
 // Кошелек-получатель, который всегда ревертит при получении ether
 contract RevertingReceiver {
@@ -31,7 +32,7 @@ contract RevertingBidder {
 
 contract SomeToken is ERC20 {
     constructor() ERC20("SomeToken", "STK") {
-        _mint(msg.sender, 1000000 * 10 ** decimals());
+        _mint(msg.sender, 1000000);
     }
 }
 
@@ -191,7 +192,7 @@ contract EnglishAuctionTest is Test {
         assertEq(h.value, 0);
 
         // Ожидаем, что токен вернулся владельцу.
-        assertEq(token.balanceOf(address(this)), 1000000 * 10 ** 18);
+        assertEq(token.balanceOf(address(this)), 1000000);
         assertEq(token.balanceOf(address(auction)), 0);
     }
 
@@ -268,7 +269,7 @@ contract EnglishAuctionTest is Test {
         assertEq(h.value, 0);
 
         // Ожидаем, что токен вернулся владельцу.
-        assertEq(token.balanceOf(address(this)), 1000000 * 10 ** 18);
+        assertEq(token.balanceOf(address(this)), 1000000);
         assertEq(token.balanceOf(address(auction)), 0);
     }
 
