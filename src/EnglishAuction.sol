@@ -25,7 +25,7 @@ contract EnglishAuction is Ownable {
     event AuctionStarted(Auction auction);
     event AuctionCanceled(Auction auction);
     event AuctionFinished(Auction auction, Bid bid);
-    event BidMaked(address account, uint256 value);
+    event BidMade(address account, uint256 value);
 
     error WalletAddressZero();
     error TooEarlyStartTime();
@@ -72,7 +72,8 @@ contract EnglishAuction is Ownable {
         require(_token.balanceOf(owner()) >= countTokens, NotEnoughTokens());
         require(_token.allowance(owner(), address(this)) >= countTokens, TokenAllowanceNeeded());
 
-        _token.transferFrom(owner(), address(this), countTokens);
+        bool result = _token.transferFrom(owner(), address(this), countTokens);
+        require(result, TransferMoneyFailed());
 
         _auction = Auction({token: _token, tokenCount: countTokens, start: startTime, duration: _duration});
 
@@ -90,7 +91,7 @@ contract EnglishAuction is Ownable {
         _highestBid = Bid({account: msg.sender, value: msg.value});
         _returnMoney(currentBid);
 
-        emit BidMaked(msg.sender, msg.value);
+        emit BidMade(msg.sender, msg.value);
     }
 
     /**

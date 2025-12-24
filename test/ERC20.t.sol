@@ -19,18 +19,21 @@ contract ERC20Test is Test {
 
     function testNotEnoughBalance() public {
         vm.expectRevert(abi.encodeWithSelector(ERC20.InsufficientBalance.selector, 1000000, 1000001));
-        token.transfer(address(1), 1000001);
+        bool result = token.transfer(address(1), 1000001);
+        vm.assertNotEq(result, true);
     }
 
     function testEnoughAllowance() public {
         token.approve(address(1), 500000);
         vm.prank(address(1));
         vm.expectRevert(abi.encodeWithSelector(ERC20.InsufficientAllowance.selector, 500000, 600000));
-        token.transferFrom(address(this), address(2), 600000);
+        bool result = token.transferFrom(address(this), address(2), 600000);
+        vm.assertNotEq(result, true);
     }
 
     function testValidAddress() public {
         vm.expectRevert(abi.encodeWithSelector(ERC20.InvalidAddress.selector, address(0)));
-        token.transfer(address(0), 1000);
+        bool result = token.transfer(address(0), 1000);
+        vm.assertNotEq(result, true);
     }
 }

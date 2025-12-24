@@ -4,3 +4,6 @@ out = "out"
 libs = ["lib"]
 
 remappings = ["@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"]
+
+[lint]
+exclude_lints = ["unwrapped-modifier-logic"]

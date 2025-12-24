@@ -4,16 +4,15 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {EnglishAuction} from "../src/EnglishAuction.sol";
 import {ERC20} from "../src/ERC20.sol";
-import {console} from "forge-std/console.sol";
 
-// Кошелек-получатель, который всегда ревертит при получении ether
+// Кошелек-получатель, который всегда отменяет транзакции получения ether.
 contract RevertingReceiver {
     receive() external payable {
         revert("no receive");
     }
 }
 
-// Ставит ставку и ревертит при возврате депозита
+// Ставит ставку и отменяет транзакции приёма средств.
 contract RevertingBidder {
     EnglishAuction public auction;
 
@@ -75,18 +74,18 @@ contract EnglishAuctionTest is Test {
         // Появляется новый токен, созданный другим пользователем.
         address user1 = makeAddr("user1");
         vm.startPrank(user1);
-        SomeToken test_token = new SomeToken();
-        test_token.approve(address(auction), 10);
+        SomeToken testToken = new SomeToken();
+        testToken.approve(address(auction), 10);
         vm.stopPrank();
 
         // Разрешаем тесту переводить токены.
-        test_token.approve(address(this), 10);
+        testToken.approve(address(this), 10);
 
         // Ожидаем получения ошибки, что у пользователя недостаточно токенов.
         vm.expectRevert(EnglishAuction.NotEnoughTokens.selector);
 
         // Пробуем стартовать аукцион.
-        auction.start(test_token, 10, block.timestamp, 0, 0);
+        auction.start(testToken, 10, block.timestamp, 0, 0);
     }
 
     /// @dev Тест нескольких ставок от разных пользователей.
@@ -103,7 +102,7 @@ contract EnglishAuctionTest is Test {
         // Пользователь 1 делает ставку.
         vm.startPrank(user1);
         vm.expectEmit(address(auction));
-        emit EnglishAuction.BidMaked(user1, 1 ether);
+        emit EnglishAuction.BidMade(user1, 1 ether);
         auction.bid{value: 1 ether}();
         vm.stopPrank();
 
@@ -396,7 +395,7 @@ contract EnglishAuctionTest is Test {
         RevertingReceiver badWallet = new RevertingReceiver();
         auction.setWallet(address(badWallet));
 
-        // Завершаем после окончания и ожидаем реверт TransferMoneyFailed
+        // Завершаем после окончания и ожидаем ошибку TransferMoneyFailed
         vm.warp(block.timestamp + 1 hours + 1);
         vm.expectRevert(EnglishAuction.TransferMoneyFailed.selector);
         auction.finish();
@@ -407,12 +406,12 @@ contract EnglishAuctionTest is Test {
         // Старт аукциона
         auction.start(token, 10, block.timestamp, 1 hours, 0);
 
-        // Первый лидер — контракт, который ревертит при возврате
+        // Первый лидер — контракт, который отменяет транзакции приёма средств при возврате
         RevertingBidder badBidder = new RevertingBidder(auction);
         // Отправляем ему средства и делаем ставку
         badBidder.placeBid{value: 1 ether}();
 
-        // Второй участник пытается перебить — возврат предыдущему лидеру зафейлится
+        // Второй участник пытается перебить — возврат предыдущему лидеру должен провалиться
         address user2 = address(0x2);
         vm.deal(user2, 2 ether);
         vm.prank(user2);
